@@ -1,0 +1,22 @@
+# Small footprint: no SSO (dex) or notifications in a demo cluster. UI via port-forward.
+dex:
+  enabled: false
+notifications:
+  enabled: false
+
+configs:
+  cm:
+    # Argo CD does not assess the health of Application resources by default, so
+    # sync waves in an app-of-apps would not wait for cert-manager to be ready
+    # before installing the plugin that needs it. This restores that.
+    resource.customizations.health.argoproj.io_Application: |
+      hs = {}
+      hs.status = "Progressing"
+      hs.message = ""
+      if obj.status ~= nil and obj.status.health ~= nil then
+        hs.status = obj.status.health.status
+        if obj.status.health.message ~= nil then
+          hs.message = obj.status.health.message
+        end
+      end
+      return hs

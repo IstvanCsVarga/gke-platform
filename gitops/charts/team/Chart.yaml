@@ -1,0 +1,5 @@
+apiVersion: v2
+name: team
+description: What a team gets in its namespace - guardrails, access and an optional Postgres cluster.
+type: application
+version: 0.1.0

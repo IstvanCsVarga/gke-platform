@@ -1,0 +1,69 @@
+# One Argo CD Application per teams/*.yaml, on every cluster Terraform created.
+# The team name is the file name, as in Terraform (which also checks that the
+# `team` field matches). Terraform outputs, like each team's bucket name, arrive
+# as annotations on the cluster secret, so nothing environment-specific is in Git.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: teams
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          - clusters:
+              selector:
+                matchLabels:
+                  gke-platform/managed: "true"
+          - git:
+              repoURL: https://github.com/IstvanCsVarga/gke-platform
+              revision: main
+              files:
+                - path: teams/*.yaml
+  template:
+    metadata:
+      name: 'team-{{ trimSuffix ".yaml" .path.filename }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: teams
+      sources:
+        - repoURL: https://github.com/IstvanCsVarga/gke-platform
+          targetRevision: main
+          path: gitops/charts/team
+          helm:
+            valueFiles:
+              - "$values/teams/{{ .path.filename }}"
+            valuesObject:
+              team: '{{ trimSuffix ".yaml" .path.filename }}'
+              pgBucket: '{{ index .metadata.annotations (printf "gke-platform/pg-bucket-%s" (trimSuffix ".yaml" .path.filename)) }}'
+        - repoURL: https://github.com/IstvanCsVarga/gke-platform
+          targetRevision: main
+          ref: values
+      destination:
+        server: "{{ .server }}"
+        namespace: '{{ trimSuffix ".yaml" .path.filename }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        managedNamespaceMetadata:
+          labels:
+            team: '{{ trimSuffix ".yaml" .path.filename }}'
+            # GKE Standard enforces no Pod Security by default; without this,
+            # `edit` is enough to run a privileged pod and take over the node.
+            pod-security.kubernetes.io/enforce: baseline
+            pod-security.kubernetes.io/warn: restricted
+            pod-security.kubernetes.io/audit: restricted
+        syncOptions:
+          - CreateNamespace=true
+        retry:
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m

@@ -1,0 +1,13 @@
+# Lets team owners (bound to `edit`) see their backup configuration. CNPG's own
+# Cluster/Backup roles are aggregated by its chart (rbac.aggregateClusterRoles);
+# the Barman Cloud plugin chart ships none for ObjectStore.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: barmancloud-objectstores-view
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+rules:
+  - apiGroups: [barmancloud.cnpg.io]
+    resources: [objectstores]
+    verbs: [get, list, watch]

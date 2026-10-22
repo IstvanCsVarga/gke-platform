@@ -1,0 +1,64 @@
+{{- if .Values.postgres.enabled }}
+# Base backups and WAL go to the team's GCS bucket (created by Terraform). No
+# credentials anywhere: the namespace's Kubernetes identities are granted on the
+# bucket. The bucket name only exists once Terraform has run, so this fails to
+# render until then instead of archiving to a bucket that isn't there.
+#
+# Argo CD never deletes or prunes the database or its backup config: removing a
+# team file, renaming it or flipping postgres.enabled must not drop data.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: pg-backups
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  configuration:
+    destinationPath: gs://{{ required "pgBucket comes from the cluster secret: run make apply" .Values.pgBucket }}/
+    googleCredentials:
+      gkeEnvironment: true
+    wal:
+      compression: gzip
+  retentionPolicy: 7d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: pg
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  instances: {{ .Values.postgres.instances }}
+  storage:
+    size: {{ .Values.postgres.storage }}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  {{- if gt (int .Values.postgres.instances) 1 }}
+  # Replicas on separate nodes, so one spot preemption can't take out all of them.
+  affinity:
+    podAntiAffinityType: required
+  {{- end }}
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: pg-backups
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: pg-daily
+spec:
+  schedule: "0 0 3 * * *" # six fields, seconds first
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: pg
+  method: plugin # still defaults to the deprecated in-tree barmanObjectStore
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}

@@ -1,0 +1,12 @@
+# One file per team. Terraform reads it for the cloud side (IAM, backup bucket),
+# Argo CD reads it for the cluster side (namespace, guardrails, Postgres).
+team: voice-api
+owners: [] # Google accounts; they get `edit` here and can fetch cluster credentials
+quota:
+  cpu: "4"
+  memory: 8Gi
+  storage: 50Gi
+postgres:
+  enabled: true
+  instances: 2
+  storage: 5Gi
