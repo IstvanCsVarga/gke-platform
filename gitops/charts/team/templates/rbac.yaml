@@ -1,0 +1,18 @@
+{{- if .Values.owners }}
+# GKE maps a Google account to its email as the Kubernetes username. Terraform grants
+# the same owners roles/container.clusterViewer so they can fetch credentials at all.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: owners-edit
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edit
+subjects:
+{{- range .Values.owners }}
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: {{ . }}
+{{- end }}
+{{- end }}

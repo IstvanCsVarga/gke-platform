@@ -1,0 +1,8 @@
+team: evals
+owners: []
+quota:
+  cpu: "2"
+  memory: 4Gi
+  storage: 10Gi
+postgres:
+  enabled: false

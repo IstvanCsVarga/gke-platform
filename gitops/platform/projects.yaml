@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Cluster-wide components owned by the platform team.
+  sourceRepos:
+    - https://charts.jetstack.io
+    - https://cloudnative-pg.github.io/charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+# Team apps get namespaced resources plus their own Namespace, never a platform
+# or system namespace. Terraform rejects those names at plan time too; this is
+# the second line in case a file reaches Argo CD first.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: teams
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: One namespace per team, rendered from teams/*.yaml.
+  sourceRepos:
+    - https://github.com/IstvanCsVarga/gke-platform
+  destinations:
+    - { server: https://kubernetes.default.svc, namespace: "!kube-*" }
+    - { server: https://kubernetes.default.svc, namespace: "!gke-*" }
+    - { server: https://kubernetes.default.svc, namespace: "!gmp-*" }
+    - { server: https://kubernetes.default.svc, namespace: "!argocd" }
+    - { server: https://kubernetes.default.svc, namespace: "!cert-manager" }
+    - { server: https://kubernetes.default.svc, namespace: "!cnpg-system" }
+    - { server: https://kubernetes.default.svc, namespace: "!default" }
+    - { server: https://kubernetes.default.svc, namespace: "*" }
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
