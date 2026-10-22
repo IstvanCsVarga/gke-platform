@@ -141,7 +141,58 @@ cluster first would orphan the persistent disks, and they would keep billing.
 
 ## Verified
 
-_Filled in from the deploy run._
+Deployed once into a new project on 22 October 2026, checked, and torn down the same
+evening.
+
+- `terraform apply`: 19 resources in 13 minutes, 10½ of them the GKE control plane.
+- `make bootstrap`: all six Argo CD applications Synced and Healthy 5 minutes later.
+  Nothing was applied by hand after `root`.
+
+![Argo CD: the root app, the platform apps, and the team apps the ApplicationSet generated](docs/argocd-root.png)
+
+On the running cluster:
+
+- **Backups.** The first base backup was in GCS a minute after the database started.
+  `kubectl cnpg status` showed WAL archiving OK with nothing waiting, and the replica
+  streaming from a second node. The autoscaler added that node for the required
+  anti-affinity.
+- **Restore drill.** I wrote 10,000 rows after that base backup, switched WAL, and
+  bootstrapped a new `Cluster` from the bucket alone. Row count, sum and an md5 over
+  every row matched the source. The table didn't exist at the base backup, so every
+  row came from WAL replay. The restore took 92 seconds.
+- **No keys.** The bucket's only team grants are to the namespace `principalSet`. No
+  service account in the project has a user-managed key, and the team namespace
+  holds only the certificates and passwords CNPG generates.
+- **Guardrails, tested from `evals`.**
+  - `pg_isready` against `pg-rw.voice-api:5432` got no response; from `voice-api`
+    itself it was accepting connections.
+  - A privileged pod was rejected by Pod Security `baseline`.
+  - A `LoadBalancer` Service was rejected by the quota.
+- **Cluster.** The control plane has no IP endpoint. Nodes are private spot Shielded VMs
+  with secure boot, run as `gke-nodes`, and give pods the GKE metadata server.
+- **Teardown.** `make destroy` deleted the team namespaces and their disks, then all 19
+  Terraform resources, in 10½ minutes. Afterwards the project had no instances, disks,
+  snapshots, IPs, load balancers, networks or clusters, only the Terraform state
+  bucket. From `apply` to the end of `destroy` took 40 minutes.
+
+![team-voice-api in Argo CD: guardrails, ObjectStore and the CloudNativePG cluster](docs/argocd-team-voice-api.png)
+
+### What broke, or surprised me
+
+- **`kubectl cnpg status` couldn't reach the instances.** On GKE the API server reaches
+  pods through the `konnectivity-agent` pods in `kube-system`, and the namespace-local
+  NetworkPolicy dropped those calls to the status port. Fixed by allowing just those
+  pods, on just port 8000 (`4263744`).
+- **My first restore drill came back without the test table, and the restore was
+  right.** I'd run the inserts and `pg_switch_wal()` in one `psql -c`, which is one
+  transaction, so the commit landed in a WAL segment that wasn't archived yet. That's
+  the RPO in practice: commits since the last archived segment are lost until
+  `archive_timeout` ships them.
+- **Sync waves opened early.** Argo CD gates a wave on the health of its Applications,
+  and a newly created Application reports Healthy before its first sync. So the Barman
+  plugin's app was created while cert-manager, which it needs, was still syncing. It
+  converged anyway, and the per-app retries make that safe. A health check that only
+  reports Healthy once Synced would make the waves mean what they say.
 
 ## Known limits
 
@@ -175,4 +226,5 @@ terraform/             VPC, NAT, GKE, node pools, team contract checks, buckets,
 gitops/bootstrap/      Argo CD Helm values and the root Application
 gitops/platform/       AppProjects, cert-manager, CloudNativePG, Barman Cloud plugin, teams ApplicationSet
 gitops/charts/team/    what a team gets in its namespace
+docs/                  screenshots from the deploy run
 ```
