@@ -15,7 +15,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-cnpg-operator
+  name: allow-cnpg-management
 spec:
   podSelector:
     matchExpressions:
@@ -30,4 +30,15 @@ spec:
       ports:
         - port: 8000
         - port: 5432
+    # `kubectl cnpg status` reads the same endpoint through the API server's pod
+    # proxy, which on GKE reaches pods from the konnectivity-agent pods.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: konnectivity-agent
+      ports:
+        - port: 8000
 {{- end }}
