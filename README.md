@@ -200,6 +200,15 @@ On the running cluster:
 
 ![team-voice-api in Argo CD: guardrails, ObjectStore and the CloudNativePG cluster](docs/argocd-team-voice-api.png)
 
+**Locally, on kind** (2 November 2026):
+
+- `make local-up` took 65 seconds. The platform apps and `team-evals` were Synced
+  and Healthy 55 seconds later.
+- `team-voice-api` came up with both Postgres instances on separate workers and the
+  replica streaming, with no `ObjectStore` or `ScheduledBackup`.
+- kindnet enforces the NetworkPolicy: from `evals`, a connection to another team's
+  Postgres was refused, and from that team's own namespace it connected.
+
 ### What broke, or surprised me
 
 - **`kubectl cnpg status` couldn't reach the instances.** On GKE the API server reaches
