@@ -1,8 +1,9 @@
 # Defaults only. Real values come from teams/<team>.yaml. The teams
-# ApplicationSet also sets `team` (from the file name) and `pgBucket` (from the
-# cluster secret, written by Terraform).
+# ApplicationSet also sets `team` (from the file name), and `pgBucket` and
+# `pgBackups` (from the cluster secret: Terraform's on GKE, local/ on kind).
 team: ""
 pgBucket: ""
+pgBackups: "" # "disabled" leaves out the ObjectStore, WAL archiving and ScheduledBackup
 owners: []
 quota:
   cpu: "2"

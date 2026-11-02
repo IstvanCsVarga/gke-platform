@@ -11,7 +11,11 @@ KUBECTL := kubectl --context $(CONTEXT)
 
 ARGOCD_CHART_VERSION := 10.10.5
 
-.PHONY: init plan apply credentials bridge bootstrap argocd-ui destroy
+# Local stand-in on kind: the same Argo CD values, root app and Git source, no GCP.
+LOCAL_CLUSTER := platform-local
+LOCAL_KUBECTL := kubectl --context kind-$(LOCAL_CLUSTER)
+
+.PHONY: init plan apply credentials bridge bootstrap argocd-ui destroy local-up local-ui local-down
 
 init:
 	$(TF) init -backend-config=bucket=$(PROJECT)-tfstate
@@ -56,3 +60,19 @@ destroy:
 		if $(KUBECTL) get pv -o name | grep -q .; then $(KUBECTL) wait --for=delete pv --all --timeout=10m; fi; \
 	fi
 	$(TF) destroy $(TFVARS)
+
+# kind instead of Terraform; local/cluster-secret.yaml instead of `make bridge`.
+local-up:
+	kind get clusters | grep -qx $(LOCAL_CLUSTER) || kind create cluster --name $(LOCAL_CLUSTER) --config local/kind.yaml
+	helm upgrade --install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
+		--kube-context kind-$(LOCAL_CLUSTER) --version $(ARGOCD_CHART_VERSION) \
+		--namespace argocd --create-namespace --values gitops/bootstrap/argocd-values.yaml --wait
+	$(LOCAL_KUBECTL) apply -f local/cluster-secret.yaml
+	$(LOCAL_KUBECTL) apply -f gitops/bootstrap/root.yaml
+
+local-ui:
+	@$(LOCAL_KUBECTL) -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
+	$(LOCAL_KUBECTL) -n argocd port-forward svc/argocd-server 8080:443
+
+local-down:
+	kind delete cluster --name $(LOCAL_CLUSTER)
