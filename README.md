@@ -117,8 +117,9 @@ when a second environment shows what actually varies.
 ## Run it
 
 Needs `gcloud` (with `gke-gcloud-auth-plugin`), `terraform`, `helm`, `kubectl`, and a
-project with billing. The repo URL in `gitops/` points at this repo; a fork changes
-it there.
+project with billing. Argo CD reads `gitops/` and `teams/` from this repo on GitHub.
+In a fork, run `make use-repo REPO=https://github.com/<you>/gke-platform` and push
+before `make bootstrap` or `make local-up`.
 
 ```sh
 PROJECT=my-project
@@ -159,8 +160,9 @@ What's different from GKE:
   rendering.
 - **Owners have no effect.** Their `edit` RoleBindings render, but kind has no
   Google accounts.
-- **Argo CD still reads this repo's `main` on GitHub**, so a change reaches the
-  local cluster once it's merged.
+- **Argo CD still reads `main` on GitHub**, so a change reaches the local cluster
+  once it's merged. In a fork, run `make use-repo` first (see above), or your
+  cluster follows this repo instead of yours.
 
 ## Verified
 

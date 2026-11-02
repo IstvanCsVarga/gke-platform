@@ -15,7 +15,11 @@ ARGOCD_CHART_VERSION := 10.10.5
 LOCAL_CLUSTER := platform-local
 LOCAL_KUBECTL := kubectl --context kind-$(LOCAL_CLUSTER)
 
-.PHONY: init plan apply credentials bridge bootstrap argocd-ui destroy local-up local-ui local-down
+# The repo Argo CD reads from, as the root app has it now. `make use-repo` changes it.
+REPO_NOW = $(shell sed -n 's/^ *repoURL: //p' gitops/bootstrap/root.yaml)
+REPO_FILES := gitops/bootstrap/root.yaml gitops/platform/projects.yaml gitops/platform/teams.yaml
+
+.PHONY: init plan apply credentials bridge bootstrap argocd-ui destroy local-up local-ui local-down use-repo
 
 init:
 	$(TF) init -backend-config=bucket=$(PROJECT)-tfstate
@@ -76,3 +80,10 @@ local-ui:
 
 local-down:
 	kind delete cluster --name $(LOCAL_CLUSTER)
+
+# Points Argo CD at a fork: the root app, the teams AppProject and the teams
+# ApplicationSet all name the repo. Commit and push the result to the fork.
+use-repo:
+	@test -n "$(REPO)" || { echo "usage: make use-repo REPO=https://github.com/<you>/gke-platform"; exit 1; }
+	OLD='$(REPO_NOW)' NEW='$(REPO)' perl -pi -e 's/\Q$$ENV{OLD}\E/$$ENV{NEW}/g' $(REPO_FILES)
+	@grep -c '$(REPO)' $(REPO_FILES)
