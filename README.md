@@ -139,6 +139,29 @@ explicitly, so a stray current context can't receive anything.
 go before running `terraform destroy`. If any volume is left, it stops. Deleting the
 cluster first would orphan the persistent disks, and they would keep billing.
 
+### Locally, on kind
+
+`make local-up` runs the same Argo CD values, root app and team files on a kind
+cluster, with no GCP project. Needs Docker, `kind`, `helm` and `kubectl`.
+
+```sh
+make local-up     # kind cluster (1 control plane, 2 workers), Argo CD, local cluster secret, root app
+make local-ui     # admin password, then https://localhost:8080
+make local-down   # deletes the kind cluster
+```
+
+What's different from GKE:
+
+- **No backups.** There's no Terraform, so there's no bucket.
+  `local/cluster-secret.yaml` sets `gke-platform/pg-backups: disabled`, and the team
+  chart then leaves out the `ObjectStore`, WAL archiving and the `ScheduledBackup`.
+  On GKE nothing sets it, so a missing bucket still stops a team's Postgres from
+  rendering.
+- **Owners have no effect.** Their `edit` RoleBindings render, but kind has no
+  Google accounts.
+- **Argo CD still reads this repo's `main` on GitHub**, so a change reaches the
+  local cluster once it's merged.
+
 ## Verified
 
 Deployed once into a new project on 22 October 2026, checked, and torn down the same
@@ -226,5 +249,6 @@ terraform/             VPC, NAT, GKE, node pools, team contract checks, buckets,
 gitops/bootstrap/      Argo CD Helm values and the root Application
 gitops/platform/       AppProjects, cert-manager, CloudNativePG, Barman Cloud plugin, teams ApplicationSet
 gitops/charts/team/    what a team gets in its namespace
+local/                 kind cluster config and cluster secret for make local-up
 docs/                  screenshots from the deploy run
 ```

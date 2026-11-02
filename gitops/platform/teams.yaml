@@ -41,6 +41,7 @@ spec:
             valuesObject:
               team: '{{ trimSuffix ".yaml" .path.filename }}'
               pgBucket: '{{ index .metadata.annotations (printf "gke-platform/pg-bucket-%s" (trimSuffix ".yaml" .path.filename)) }}'
+              pgBackups: '{{ index .metadata.annotations "gke-platform/pg-backups" }}'
         - repoURL: https://github.com/IstvanCsVarga/gke-platform
           targetRevision: main
           ref: values

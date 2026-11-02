@@ -1,11 +1,15 @@
 {{- if .Values.postgres.enabled }}
+{{- $backups := ne .Values.pgBackups "disabled" }}
 # Base backups and WAL go to the team's GCS bucket (created by Terraform). No
 # credentials anywhere: the namespace's Kubernetes identities are granted on the
 # bucket. The bucket name only exists once Terraform has run, so this fails to
-# render until then instead of archiving to a bucket that isn't there.
+# render until then instead of archiving to a bucket that isn't there. Only a
+# cluster secret that says pg-backups: disabled turns backups off (the local kind
+# cluster, which has no buckets).
 #
 # Argo CD never deletes or prunes the database or its backup config: removing a
 # team file, renaming it or flipping postgres.enabled must not drop data.
+{{- if $backups }}
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
@@ -21,6 +25,7 @@ spec:
       compression: gzip
   retentionPolicy: 7d
 ---
+{{- end }}
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
@@ -42,11 +47,14 @@ spec:
   affinity:
     podAntiAffinityType: required
   {{- end }}
+  {{- if $backups }}
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       isWALArchiver: true
       parameters:
         barmanObjectName: pg-backups
+  {{- end }}
+{{- if $backups }}
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
@@ -61,4 +69,5 @@ spec:
   method: plugin # still defaults to the deprecated in-tree barmanObjectStore
   pluginConfiguration:
     name: barman-cloud.cloudnative-pg.io
+{{- end }}
 {{- end }}
